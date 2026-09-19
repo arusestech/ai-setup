@@ -45,6 +45,7 @@ install.bat
 | `bin/bgrun` | 명령을 세션과 분리해 실행(setsid+nohup), 로그·종료코드 `~/bg-jobs/`. **Linux/macOS 전용** |
 | `bin/ct` · `bin/cxt` | Claude(`ct`) / Codex(`cxt`) 를 tmux 세션 안에서 실행·복귀. tmux 필요. **Linux/macOS 전용** |
 | `bin/wwt` | [web-tester](https://github.com/arusestech/web-tester) 래퍼: `run` / `bg` / `summary`(❌·⚠️ 만 요약) / `ls`. bash 필요(Windows 는 Git Bash, 또는 web-tester 의 `run.bat`) |
+| `bin/pullall.bat` (+`.ps1`) | `~/.ai-setup/repos.local.txt`(PC 별, 한 줄에 폴더 하나)에 적힌 레포를 한 번에 `git pull --ff-only`. 로컬 변경은 건드리지 않고 fast-forward 안 되면 FAILED 로만 표시. `-FetchOnly` 는 뒤처진 커밋 수만 확인. **Windows 용** |
 | `tmux.conf` | `~/.tmux.conf` — 마우스 스크롤, 스크롤백 5만 줄, ESC 지연 제거 |
 | `shell/bashrc-snippet.sh` | (수동) `~/.bashrc` 에 붙이는 조각 — PATH, SSH 로그인 시 tmux 세션·bgrun 작업 안내 |
 | `mcp/playwright.md` | playwright MCP 등록 명령 — Claude / Codex, Linux·NAS / Windows. **모든 PC 의 옵션 기준**이며 에이전트가 MCP 를 쓰기 전 현재 등록과 비교해 맞춘다(전역 규칙). 등록 자체는 PC 별이라 install 이 하지 않는다 |
