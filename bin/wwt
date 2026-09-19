@@ -34,7 +34,10 @@ case "$1" in
         for a in "$@"; do case "$a" in --all) all=1 ;; latest) ;; *) dir="$a" ;; esac; done
         [ -z "$dir" ] && dir=$(latest_dir)
         [ -f "$dir/report.json" ] || { echo "wwt: report.json 없음: $dir" >&2; exit 1; }
-        WWT_ALL=$all python3 - "$dir" <<'PY'
+        # python3 우선, 없거나 Windows Store 스텁(실행 불가)이면 python
+        py=""; for p in python3 python; do "$p" -c '' >/dev/null 2>&1 && { py=$p; break; }; done
+        [ -n "$py" ] || { echo "wwt: python3/python 없음" >&2; exit 3; }
+        WWT_ALL=$all PYTHONIOENCODING=utf-8 "$py" - "$dir" <<'PY'
 import json, os, sys
 d = sys.argv[1]; r = json.load(open(os.path.join(d, 'report.json'), encoding='utf-8'))
 full = os.path.abspath(d)
