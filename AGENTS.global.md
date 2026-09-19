@@ -41,7 +41,8 @@
 
 ### playwright MCP 는 언제 쓰나
 - 기본적으로 쓰지 않는다. **사용자가 명시적으로 요청했거나**, web-tester 결과의 특정 실패 1~2건을 화면에서 직접 재현·관찰해야 원인을 알 수 있을 때만 그 화면에 한해 쓴다. 메뉴 순회·회귀 테스트 용도로는 쓰지 않는다.
-- 쓸 때: 전체 스냅샷은 최소화(`browser_evaluate`·`browser_find` 우선), 스크린샷은 `/volume2/claude-home/playwright-output/` 에 파일로만 저장된다(`--image-responses omit`). 현재 옵션은 `claude mcp get playwright` 로 확인(headless, `--isolated`, 1920x1080, `--console-level error`, `--ignore-https-errors`, `--codegen none`).
+- **등록 옵션의 기준은 `ai-setup` 레포의 `mcp/playwright.md`** 다(레포 위치는 `paths.local.md` 의 "ai-setup 레포" 행). 환경별로 다르다 — Linux·NAS 는 headless·`--isolated`, Windows 는 설치된 Chrome·`--isolated` 없음(영구 프로필). MCP 를 등록·점검하거나 쓰기 전에 `claude mcp get playwright`(Codex 는 `codex mcp list`)를 그 문서와 비교하고, 다르면 사용자에게 알린 뒤 문서대로 다시 등록한다. 옵션을 바꿀 때는 PC 설정만 바꾸지 말고 그 문서를 고쳐 커밋한다.
+- 쓸 때: 전체 스냅샷은 최소화(`browser_evaluate`·`browser_find` 우선), 스크린샷은 출력 폴더(`/volume2/claude-home/playwright-output/`, 다른 PC 는 `paths.local.md`)에 파일로만 저장된다(`--image-responses omit`).
 
 ### 결과 보고 형식
 - 요약 한 줄(전체 N개 중 정상/실패/주의, 직전 대비 신규 실패/해결) + 증적 폴더 경로. 표는 다시 만들지 말고 `defects.csv`·`report.html` 경로를 안내한다.

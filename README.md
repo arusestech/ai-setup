@@ -47,7 +47,7 @@ install.bat
 | `bin/wwt` | [web-tester](https://github.com/arusestech/web-tester) 래퍼: `run` / `bg` / `summary`(❌·⚠️ 만 요약) / `ls`. bash 필요(Windows 는 Git Bash, 또는 web-tester 의 `run.bat`) |
 | `tmux.conf` | `~/.tmux.conf` — 마우스 스크롤, 스크롤백 5만 줄, ESC 지연 제거 |
 | `shell/bashrc-snippet.sh` | (수동) `~/.bashrc` 에 붙이는 조각 — PATH, SSH 로그인 시 tmux 세션·bgrun 작업 안내 |
-| `mcp/playwright.md` | (수동) playwright MCP 등록 명령 — Claude / Codex, Linux·NAS / Windows |
+| `mcp/playwright.md` | playwright MCP 등록 명령 — Claude / Codex, Linux·NAS / Windows. **모든 PC 의 옵션 기준**이며 에이전트가 MCP 를 쓰기 전 현재 등록과 비교해 맞춘다(전역 규칙). 등록 자체는 PC 별이라 install 이 하지 않는다 |
 | `paths.local.example.md` | PC 별 경로 매핑 파일의 예시 |
 
 스킬은 에이전트 중립적으로 쓴다: 특정 에이전트의 도구 이름에 의존하는 절차를 넣지 않고, 다른 스킬은 이름으로만 가리킨다.

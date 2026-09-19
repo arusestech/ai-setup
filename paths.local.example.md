@@ -7,6 +7,7 @@
 
 | 논리 이름 (NAS 기준 경로) | 이 PC 의 실제 경로 |
 |---|---|
+| ai-setup 레포 (이 규칙·스킬·`mcp/playwright.md` 원본) | |
 | 작업 루트 (`/volume2/claude`) | |
 | web-tester (`/volume2/claude/web-tester`) | |
 | wrb_voc 참고자료 (`/volume2/claude/wrb_voc`) | |
@@ -17,7 +18,7 @@
 | starbucks_voc 참고자료 (`/volume2/claude/starbucks_voc`) | |
 | STARBUCKS-VOC-MASTER / BATCH 소스 (`/volume2/claude/repo/STARBUCKS-VOC-*`) | |
 | 개발 도구 (`/volume2/claude-home/program` — JDK, Maven, Tomcat, Python, Node) | (예: 시스템 설치 사용 — JAVA_HOME=…, mvn 은 PATH) |
-| playwright 출력 폴더 (`/volume2/claude-home/playwright-output`) | |
+| playwright 출력 폴더 (`/volume2/claude-home/playwright-output`) | (등록 옵션은 `mcp/playwright.md` 기준 — 여기엔 폴더만) |
 
 ## web-tester 실행 방법 (이 PC)
 - (예: Windows → `<web-tester>\run.bat <시나리오> --headless …`, 결과 요약은 Git Bash 에서 `WWT_HOME=<web-tester> wwt summary` 또는 `reports\...\report.json` 의 status≠ok 항목만 읽기)
