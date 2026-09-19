@@ -1,0 +1,7 @@
+# 셸/파이썬 스크립트는 Windows 에서 클론해도 LF 유지 (CRLF 면 bash 에서 실행 불가)
+* text=auto
+*.sh text eol=lf
+*.py text eol=lf
+bin/* text eol=lf
+*.md text eol=lf
+*.bat text eol=crlf

@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+.DS_Store
+# 개인 접속정보·비밀번호는 이 레포에 두지 않는다
+*.local.md
+.env

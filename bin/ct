@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# ct — AI 에이전트(Claude Code, 기본)를 tmux 세션 안에서 실행/복귀한다. SSH 가 끊겨도 에이전트와 작업이 그대로 살아 있다.
+#      Codex 는 cxt (= AI_CMD=codex ct). 새 세션 이름은 claude=폴더명, codex=cx-폴더명
+#
+#   ct              세션이 하나면 그 세션으로 복귀, 없으면 현재 폴더 이름으로 새 세션 + claude 실행
+#   ct <이름>        해당 이름의 세션으로 복귀(없으면 현재 폴더에서 새로 생성)
+#   ct ls           세션 목록
+#   ct kill <이름>   세션 종료
+#   ct <이름> -- <claude 인자...>   새 세션 생성 시 claude 에 인자 전달 (예: ct voc -- --continue)
+#
+# 세션에서 빠져나오기(세션은 계속 실행): Ctrl+b 누른 뒤 d
+
+AI_CMD="${AI_CMD:-claude}"; [ "$AI_CMD" = claude ] && PREFIX="" || PREFIX="cx-"
+TMUX_BIN=/volume2/claude-home/program/tmux/bin/tmux
+[ -x "$TMUX_BIN" ] || TMUX_BIN=tmux
+
+usage() { sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; }
+sanitize() { local s="${1//[.:[:space:]]/_}"; echo "${s:-claude}"; }   # tmux 세션 이름에 . : 공백 불가
+
+case "$1" in
+  -h|--help) usage; exit 0 ;;
+  ls|list)   "$TMUX_BIN" ls 2>/dev/null || echo "tmux 세션 없음"; exit 0 ;;
+  kill)      [ -n "$2" ] || { echo "사용법: ct kill <이름>"; exit 1; }; "$TMUX_BIN" kill-session -t "=$2"; exit $? ;;
+esac
+
+if [ -n "$TMUX" ]; then
+  echo "이미 tmux 세션 안입니다: $("$TMUX_BIN" display-message -p '#S')  (다른 세션 이동: Ctrl+b s)"
+  exit 1
+fi
+
+name=""
+if [ -n "$1" ] && [ "$1" != "--" ]; then name=$(sanitize "$1"); shift; fi
+[ "$1" = "--" ] && shift
+claude_args=("$@")
+
+if [ -z "$name" ]; then
+  mapfile -t sessions < <("$TMUX_BIN" ls -F '#S' 2>/dev/null)
+  if [ "${#sessions[@]}" -eq 1 ]; then
+    name="${sessions[0]}"
+  elif [ "${#sessions[@]}" -gt 1 ]; then
+    echo "세션이 여러 개입니다. 이름을 지정하세요: ct <이름>"
+    "$TMUX_BIN" ls
+    exit 1
+  else
+    name="$PREFIX$(sanitize "$(basename "$PWD")")"
+  fi
+fi
+
+if "$TMUX_BIN" has-session -t "=$name" 2>/dev/null; then
+  exec "$TMUX_BIN" attach-session -t "=$name"
+fi
+
+"$TMUX_BIN" new-session -d -s "$name" -c "$PWD" || exit 1
+cmd="$AI_CMD"
+for a in "${claude_args[@]}"; do cmd+=" $(printf '%q' "$a")"; done
+"$TMUX_BIN" send-keys -t "=$name:" "$cmd" Enter
+exec "$TMUX_BIN" attach-session -t "=$name"

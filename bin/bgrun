@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# bgrun — 명령을 SSH/Claude 세션과 완전히 분리해서 백그라운드로 실행한다 (setsid + nohup).
+# 접속이 끊기거나 Claude 가 종료돼도 계속 돌고, 로그와 종료 코드가 파일로 남는다.
+#
+#   bgrun [-n 이름] [-C 작업폴더] -- <명령...>    실행 (명령 하나를 문자열로 줘도 됨: bgrun -n build -- 'mvn -q package && echo done')
+#   bgrun list                                  작업 목록 (실행중/종료, 종료 코드)
+#   bgrun status <이름>                          상세 상태
+#   bgrun tail <이름> [줄수]                      로그 끝부분 (기본 40줄)
+#   bgrun follow <이름>                          로그 실시간 보기 (Ctrl+C 로 빠져나와도 작업은 계속)
+#   bgrun stop <이름>                            작업 종료 (프로세스 그룹 전체 TERM → 5초 뒤 KILL)
+#   bgrun clean [일수]                           종료된 지 N일(기본 7일) 지난 작업 기록 삭제
+#
+# 작업 기록: $BGRUN_HOME (기본 ~/bg-jobs)/<이름>/{cmd,cwd,pid,started,log,exit,finished}
+
+BG_HOME="${BGRUN_HOME:-$HOME/bg-jobs}"
+mkdir -p "$BG_HOME"
+
+usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; }
+die() { echo "bgrun: $*" >&2; exit 1; }
+job_dir() { [ -n "$1" ] || die "작업 이름이 필요합니다"; [ -d "$BG_HOME/$1" ] || die "작업 없음: $1 (bgrun list 로 확인)"; echo "$BG_HOME/$1"; }
+is_running() { local p; p=$(cat "$1/pid" 2>/dev/null) || return 1; [ -n "$p" ] && [ ! -f "$1/exit" ] && kill -0 "$p" 2>/dev/null; }
+state_of() {
+  if [ -f "$1/exit" ]; then echo "종료($(cat "$1/exit"))";
+  elif is_running "$1"; then echo "실행중";
+  else echo "중단됨(종료코드 없음)"; fi
+}
+
+case "$1" in
+  ""|-h|--help) usage; exit 0 ;;
+  list|ls)
+    printf '%-28s %-22s %-8s %-20s %s\n' 이름 상태 PID 시작 명령
+    for d in $(ls -1t "$BG_HOME" 2>/dev/null); do
+      j="$BG_HOME/$d"; [ -f "$j/cmd" ] || continue
+      printf '%-28s %-22s %-8s %-20s %s\n' "$d" "$(state_of "$j")" "$(cat "$j/pid" 2>/dev/null)" "$(cat "$j/started" 2>/dev/null)" "$(head -c 70 "$j/cmd" | tr '\n' ' ')"
+    done; exit 0 ;;
+  status)
+    j=$(job_dir "$2") || exit 1
+    echo "이름: $2"; echo "상태: $(state_of "$j")"; echo "PID: $(cat "$j/pid" 2>/dev/null)"
+    echo "폴더: $(cat "$j/cwd")"; echo "시작: $(cat "$j/started")"; [ -f "$j/finished" ] && echo "종료: $(cat "$j/finished")"
+    echo "명령: $(cat "$j/cmd")"; echo "로그: $j/log ($(wc -l < "$j/log") 줄)"; exit 0 ;;
+  tail)   j=$(job_dir "$2") || exit 1; echo "[$(state_of "$j")] $j/log"; tail -n "${3:-40}" "$j/log"; exit 0 ;;
+  follow) j=$(job_dir "$2") || exit 1; exec tail -n 40 -f "$j/log" ;;
+  stop)
+    j=$(job_dir "$2") || exit 1
+    is_running "$j" || { echo "이미 끝난 작업: $(state_of "$j")"; exit 0; }
+    p=$(cat "$j/pid"); kill -TERM -- "-$p" 2>/dev/null || kill -TERM "$p" 2>/dev/null
+    for _ in 1 2 3 4 5; do is_running "$j" || break; sleep 1; done
+    is_running "$j" && { kill -KILL -- "-$p" 2>/dev/null; sleep 1; }
+    [ -f "$j/exit" ] || { echo "stopped" > "$j/exit"; date '+%F %T' > "$j/finished"; }
+    echo "종료함: $2"; exit 0 ;;
+  clean)
+    days="${2:-7}"
+    for d in $(ls -1 "$BG_HOME" 2>/dev/null); do
+      j="$BG_HOME/$d"; [ -f "$j/cmd" ] || continue; is_running "$j" && continue
+      [ -n "$(find "$j/log" -mtime +"$days" 2>/dev/null)" ] && { \rm -rf -- "$j"; echo "삭제: $d"; }
+    done; exit 0 ;;
+esac
+
+# ---- 실행 ----
+name=""; cwd="$PWD"
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -n) name="$2"; shift 2 ;;
+    -C) cwd="$2"; shift 2 ;;
+    --) shift; break ;;
+    *)  break ;;
+  esac
+done
+[ $# -gt 0 ] || die "실행할 명령이 없습니다 (bgrun -h)"
+[ -d "$cwd" ] || die "작업폴더 없음: $cwd"
+
+if [ $# -eq 1 ]; then cmd="$1"; else cmd=$(printf '%q ' "$@"); fi
+base="${name:-$(basename "${1%% *}")}"
+base="${base//[^A-Za-z0-9._-]/_}"; base="${base#-}"; base="${base:-job}"
+name="$base-$(date +%m%d-%H%M%S)"
+n=2; while [ -e "$BG_HOME/$name" ]; do name="$base-$(date +%m%d-%H%M%S)-$n"; n=$((n+1)); done
+j="$BG_HOME/$name"; mkdir "$j" || die "작업 폴더 생성 실패"
+echo "$cmd" > "$j/cmd"; echo "$cwd" > "$j/cwd"; date '+%F %T' > "$j/started"; : > "$j/log"
+
+# 러너: 새 세션(setsid)에서 HUP 무시, 표준입출력을 터미널에서 분리. 로그인 환경(PATH, env.sh)을 쓰려고 bash -lc 로 실행.
+cat > "$j/run.sh" <<EOF
+#!/usr/bin/env bash
+trap '' HUP
+cd $(printf '%q' "$cwd") || exit 97
+[ -f "\$HOME/.bashrc" ] && . "\$HOME/.bashrc" >/dev/null 2>&1
+echo \$\$ > $(printf '%q' "$j/pid")
+bash -c $(printf '%q' "$cmd")
+rc=\$?
+echo \$rc > $(printf '%q' "$j/exit"); date '+%F %T' > $(printf '%q' "$j/finished")
+echo "[bgrun] 종료 코드 \$rc (\$(date '+%F %T'))"
+EOF
+chmod +x "$j/run.sh"
+setsid nohup bash "$j/run.sh" < /dev/null >> "$j/log" 2>&1 &
+disown 2>/dev/null
+
+for _ in 1 2 3 4 5 6 7 8 9 10; do [ -s "$j/pid" ] && break; sleep 0.1; done
+echo "백그라운드 시작: $name (PID $(cat "$j/pid" 2>/dev/null))"
+echo "로그: $j/log"
+echo "확인: bgrun tail $name | bgrun status $name | bgrun stop $name"

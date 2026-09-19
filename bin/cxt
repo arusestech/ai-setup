@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# cxt — Codex 를 tmux 세션 안에서 실행/복귀한다 (ct 와 같은 사용법: cxt, cxt <이름>, cxt ls, cxt kill <이름>, cxt <이름> -- <codex 인자>)
+AI_CMD=codex exec "$(dirname "$(readlink -f "$0")")/ct" "$@"

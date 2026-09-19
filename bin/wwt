@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# wwt — WIGO Web Tester(/volume2/claude/web-tester) 실행·결과 요약 래퍼. 도구 본체는 건드리지 않는다.
+#
+#   wwt run <시나리오.json|폴더> [옵션...]   headless 실행 (경로는 web-tester 기준 상대경로 또는 절대경로). --headless 는 자동으로 붙는다
+#   wwt bg  <시나리오.json|폴더> [옵션...]   같은 실행을 bgrun 으로(SSH/Claude 세션과 무관하게) 돌린다
+#   wwt summary [증적폴더|latest] [--all]    report.json 에서 요약 + ❌/⚠️ 항목만 간결하게 출력 (--all 이면 정상 항목도 한 줄씩)
+#   wwt latest [프로젝트]                     가장 최근 증적 폴더 경로
+#   wwt ls                                   프로젝트/시나리오 목록
+#   wwt <그 외>                               그대로 cli.js 에 전달 (lint, scan-source, discover, --help ...)
+#
+# 비밀번호: 시나리오의 {{password}} 는 환경변수 WWT_password 또는 --secret password=값 으로 준다 (파일에 쓰지 않는다).
+
+WT_HOME="${WWT_HOME:-${CLAUDE_WORK:-/volume2/claude}/web-tester}"   # 다른 PC: CLAUDE_WORK(작업 루트) 또는 WWT_HOME 지정
+[ -f /volume2/claude-home/program/env.sh ] && . /volume2/claude-home/program/env.sh
+cd "$WT_HOME" || { echo "wwt: web-tester 폴더 없음: $WT_HOME" >&2; exit 3; }
+[ -d node_modules/playwright ] || { echo "wwt: node_modules 없음 → (cd $WT_HOME && npm ci) 필요" >&2; exit 3; }
+
+latest_dir() {  # [프로젝트] → 가장 최근 report.json 이 있는 폴더
+  find "reports/${1:-}" -name report.json -not -path '*/_소스분석/*' -printf '%T@ %h\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-
+}
+
+case "$1" in
+  ""|-h|--help) sed -n '2,11p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+  run)  shift; exec node cli.js run "$@" --headless ;;
+  bg)   shift
+        n=$(basename "${1%.json}"); n="${n//[^A-Za-z0-9._-]/_}"
+        cmd="cd $(printf '%q' "$WT_HOME") && node cli.js run"; for a in "$@"; do cmd+=" $(printf '%q' "$a")"; done; cmd+=" --headless"
+        command -v bgrun >/dev/null 2>&1 || { echo "wwt: bgrun 없음(Linux/macOS 전용) → wwt run 으로 실행하세요" >&2; exit 3; }
+        exec bgrun -n "wwt-${n:-run}" -C "$WT_HOME" -- "$cmd" ;;
+  latest) d=$(latest_dir "$2"); [ -n "$d" ] && echo "$WT_HOME/$d" || { echo "증적 없음" >&2; exit 1; }; exit 0 ;;
+  ls)   find scenarios -name '*.json' -not -name '_*' | sort; exit 0 ;;
+  summary)
+        shift; dir=""; all=0
+        for a in "$@"; do case "$a" in --all) all=1 ;; latest) ;; *) dir="$a" ;; esac; done
+        [ -z "$dir" ] && dir=$(latest_dir)
+        [ -f "$dir/report.json" ] || { echo "wwt: report.json 없음: $dir" >&2; exit 1; }
+        WWT_ALL=$all python3 - "$dir" <<'PY'
+import json, os, sys
+d = sys.argv[1]; r = json.load(open(os.path.join(d, 'report.json'), encoding='utf-8'))
+full = os.path.abspath(d)
+print(f"증적: {full}")
+print(f"시나리오: {r.get('scenario')} | {r.get('baseUrl')} | {r.get('ranAt')}")
+res = r.get('results', [])
+print(f"전체 {len(res)} / 정상 {r.get('ok')} / 실패 {r.get('fail')} / 주의 {r.get('warn')} / 소요 {round(r.get('totalMs',0)/1000)}초")
+if r.get('triage'): print('1차 분류:', ', '.join(f"{k} {v}" for k, v in r['triage'].items()))
+c = r.get('compare')
+if c:
+    names = lambda k: ', '.join((x.get('name') if isinstance(x, dict) else str(x)) for x in c.get(k, [])) or '-'
+    print(f"직전 비교 → 🆕 신규 실패: {names('newFail')}\n            ✨ 해결: {names('fixed')}\n            ➖ 그대로: {len(c.get('stillFail', []))}건")
+icon = {'ok': '✅', 'fail': '❌', 'warn': '⚠️'}
+bad = [x for x in res if x.get('status') != 'ok']
+if bad: print('\n이름 | URL | 결과 | 분류 | 증상 | 스크린샷')
+for x in bad:
+    msgs = '; '.join(i.get('msg', '')[:160] for i in x.get('issues', [])[:4])
+    t = (x.get('triage') or {}).get('type', '')
+    ch = f" [{x['change']}]" if x.get('change') else ''
+    print(f"{x.get('name')}{ch} | {x.get('url','')} | {icon.get(x.get('status'), x.get('status'))} | {t} | {msgs} | {x.get('screenshot') or '-'}")
+if os.environ.get('WWT_ALL') == '1':
+    print('\n정상: ' + ', '.join(x.get('name', '') for x in res if x.get('status') == 'ok'))
+if os.path.exists(os.path.join(d, 'defects.csv')): print(f"\n결함 CSV: {full}/defects.csv | HTML: {full}/report.html")
+PY
+        exit $? ;;
+  *)    exec node cli.js "$@" ;;
+esac
