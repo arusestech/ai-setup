@@ -125,6 +125,7 @@ def main():
     allc = changed_files(repo, a.base, a.to)
     if a.files:
         want = [os.path.relpath(os.path.abspath(os.path.join(repo, f)), repo) if not os.path.isabs(f) else os.path.relpath(f, repo) for f in a.files]
+        want = [w.replace(os.sep, '/') for w in want]   # Windows: git 경로(/)와 맞춘다
         st = dict((p, s) for s, p in allc)
         missing = [w for w in want if w not in st]
         if missing:
